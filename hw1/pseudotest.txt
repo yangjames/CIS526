@@ -1,0 +1,28 @@
+initialize t(e|f) uniformly
+while not converged do
+      // intialize
+      count(e|f) = 0 for all e,f
+      total(f) = 0 for all f
+      for all sentence pairs (e,f) do
+      	  // compute normalization
+	  for all words e in e do
+	      s-total(e) = 0
+	      for all words f in f do
+	      	  s-total(e) += t(e|f)
+              end for
+	  end for
+          // collect counts
+          for all words e in e do
+      	      for all words f in f do
+	      	  count(e|f) += t(e|f)/s-total(e)
+		  total(f) += t(e|f)/s-total(e)
+	      end for
+	  end for
+      end for
+      // estimate probabilities
+      for all foreign words f do
+      	  for all English words e do
+	      t(e|f) = count(e|f)/total(f)
+	  end for
+      end for
+ end while
