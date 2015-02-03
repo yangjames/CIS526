@@ -17,7 +17,7 @@ f_data = "%s.%s" % (opts.train, opts.french)
 e_data = "%s.%s" % (opts.train, opts.english)
 
 # split documents by line and split sentences into words
-sys.stderr.write("Training with Dice's coefficient...")
+sys.stderr.write("Splitting data...\n")
 bitext = [[sentence.strip().split() for sentence in pair] for pair in zip(open(f_data), open(e_data))[:opts.num_sents]]
 
 # create hash maps for each unique french word count per sentence,
@@ -26,6 +26,8 @@ bitext = [[sentence.strip().split() for sentence in pair] for pair in zip(open(f
 f_count = defaultdict(int)
 e_count = defaultdict(int)
 fe_count = defaultdict(int)
+percent = 0
+sys.stderr.write('\rpercent done: %3d%%' % percent)
 for (n, (f, e)) in enumerate(bitext):
   for f_i in set(f):
     f_count[f_i] += 1
@@ -33,12 +35,19 @@ for (n, (f, e)) in enumerate(bitext):
       fe_count[(f_i,e_j)] += 1
   for e_j in set(e):
     e_count[e_j] += 1
-  if n % 500 == 0:
-    sys.stderr.write(".")
+  if (float(n) / len(bitext)*100) > percent:
+    percent += 1
+    sys.stderr.write('\rpercent done: %3d%%' % percent)
 
 # intialize t(f|e) uniformly - pseudocode line 1
+sys.stderr.write('\nCounting vocabulary instances in corpus...\n')
+percent = 0
+sys.stderr.write('\rpercent done: %3d%%' % percent)
 t_e_given_f = defaultdict(float)
-for (f,e) in bitext:
+for (n,(f,e)) in enumerate(bitext):
+  if (float(n) / len(bitext)*100) > percent:
+    percent += 1
+    sys.stderr.write('\rpercent done: %3d%%' % percent)
   for e_i in set(e):
     for f_j in set(f):
       t_e_given_f[(e_i,f_j)] = float(1)/len(f_count)
@@ -46,7 +55,10 @@ for (f,e) in bitext:
 # begin EM
 iterator = 0
 max_iter = 6
+sys.stderr.write('\nTraining likelihood...\n')
 while iterator < max_iter: # pseudocode line 2
+  sys.stderr.write('\riteration %d of %d' % (iterator+1,max_iter))
+
   # intialize - pseudocode line 3
   count_e_given_f = defaultdict(float)
   total_f = defaultdict(float)
@@ -84,9 +96,12 @@ for (f,e) in bitext:
       a_i_given_jlelf[(i,j,len(e),len(f))] = 1/float(len(f)+1)
 
 # begin model 2 training
+sys.stderr.write('\nTraining prior...\n')
 iterator = 0
 max_iter = 6
 while iterator < max_iter:
+  sys.stderr.write('\riteration %d of %d' % (iterator+1,max_iter))
+  
   count_e_given_f = defaultdict(float)
   total_f = defaultdict(float)
   count_a_i_given_jlelf = defaultdict(float)
@@ -133,13 +148,26 @@ while iterator < max_iter:
   iterator += 1
 
 # print out alignment
-for (f, e) in bitext:
+sys.stderr.write('\nPrinting alignment...\n')
+percent = 0
+sys.stderr.write('\rpercent done: %3d%%')
+for (n,(f, e)) in enumerate(bitext):
+  if (float(n)/len(bitext)*100) > percent:
+    percent+=1
+    sys.stderr.write('\rpercent done: %3d%%')
+  
   for (i, e_i) in enumerate(e): 
     biggest = 0.0
     idx = 0
     for (j, f_j) in enumerate(f):
-      if t_e_given_f[(e_i,f_j)]*a_i_given_jlelf[(i,j,len(e),len(f))] > biggest:
-        biggest =  t_e_given_f[(e_i,f_j)]*a_i_given_jlelf[(i,j,len(e),len(f))]
+      if t_e_given_f[(e_i,f_j)] > biggest:
+        biggest =  t_e_given_f[(e_i,f_j)]
         idx = j
     sys.stdout.write("%i-%i " % (idx,i))
   sys.stdout.write("\n")
+
+  #     if t_e_given_f[(e_i,f_j)]*a_i_given_jlelf[(i,j,len(e),len(f))] > biggest:
+  #       biggest =  t_e_given_f[(e_i,f_j)]*a_i_given_jlelf[(i,j,len(e),len(f))]
+  #       idx = j
+  #   sys.stdout.write("%i-%i " % (idx,i))
+  # sys.stdout.write("\n")
