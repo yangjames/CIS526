@@ -54,7 +54,7 @@ for (n,(f,e)) in enumerate(bitext):
 
 # begin EM
 iterator = 0
-max_iter = 6
+max_iter = 10
 sys.stderr.write('\nTraining likelihood...\n')
 while iterator < max_iter: # pseudocode line 2
   sys.stderr.write('\riteration %d of %d' % (iterator+1,max_iter))
@@ -98,7 +98,7 @@ for (f,e) in bitext:
 # begin model 2 training
 sys.stderr.write('\nTraining prior...\n')
 iterator = 0
-max_iter = 6
+max_iter = 10
 while iterator < max_iter:
   sys.stderr.write('\riteration %d of %d' % (iterator+1,max_iter))
   
