@@ -2,10 +2,25 @@
 import argparse # optparse is deprecated
 from itertools import islice # slicing for iterators
 import sys
+from nltk import pos_tag, word_tokenize, download
 from collections import defaultdict
-
+download('punkt')
+download('maxent_treebank_pos_tagger')
 def word_matches(h, ref):
-    # create different possible chunks
+    r_str = ' '.join(ref)
+    h_str = ' '.join(h)
+    r_pos = pos_tag(word_tokenize(r_str))
+    h_pos = pos_tag(word_tokenize(h_str))
+
+    
+    sys.stderr.write(str(r_pos) + '\n')
+    sys.stderr.write(str(h_pos) + '\n\n')
+    # parameters
+    alpha = 0.82
+    beta = 0.05
+    gamma = 0.0
+
+    # generate all possible chunks from reference sentence
     r_dict = [[] for x in xrange(len(ref)*(len(ref)+1)/2)]
     idx = 0
     for r_start in xrange(0,len(ref)+1):
@@ -13,7 +28,22 @@ def word_matches(h, ref):
             r_dict[idx] = ref[r_start:r_end]
             idx+=1
 
-    # get chunks
+    # generate bag of words for reference and hypothesis sentences
+    r_bag = defaultdict(float)
+    for r_word in ref:
+        if r_word in r_bag:
+            r_bag[r_word] += 1.0
+        else:
+            r_bag[r_word] = 1.0
+    
+    h_bag = defaultdict(float)
+    for h_word in h:
+        if h_word in h_bag:
+            h_bag[h_word] += 1.0
+        else:
+            h_bag[h_word] = 1.0
+            
+    # get number of chunks
     c = 0.0
     h_start = 0
     h_end = 1
@@ -25,14 +55,28 @@ def word_matches(h, ref):
             c += 1
             h_start = h_end+1
             h_end = h_start+1
-    m = sum(1.0 for w in h if w in set(ref))
-    i = set(h).intersection(set(ref))
-    P_he = float(len(i))/len(set(h))
-    R_he = float(len(i))/len(set(ref))
-    beta = 5.0
-    gamma = 0.9
-    alpha = 0.5
-    if len(i) == 0:
+
+    # calculate word count
+    m = sum(1.0 for w in h if w in ref)
+
+    # calculate intersection of reference and hypothesis sentences
+    hr_intersect = defaultdict(float)
+    for r_word in r_bag:
+        if r_word in h_bag:
+            hr_intersect[r_word] = min(h_bag[r_word],r_bag[r_word])
+    
+    i = 0.0
+    for word in hr_intersect:
+        i += hr_intersect[word]
+
+    # calculate translation precision
+    P_he = i/len(set(h))
+
+    # calculate translation recall
+    R_he = i/len(set(ref))
+
+    # catch divide-by-zero error
+    if i == 0.0:
         return 0.0
     return (1.0-gamma*((c/m) ** beta))*P_he*R_he/((1.0-alpha)*R_he+alpha*P_he)
  
@@ -49,15 +93,15 @@ def main():
     def sentences():
         with open(opts.input) as f:
             for pair in f:
-                yield [sentence.strip().split() for sentence in pair.split(' ||| ')]
+                yield [sentence.decode('utf-8').strip().split() for sentence in pair.split(' ||| ')]
  
     # note: the -n option does not work in the original code
     for h1, h2, ref in islice(sentences(), opts.num_sentences):
         h1_match = word_matches(h1, ref)
         h2_match = word_matches(h2, ref)
-        print(1 if h1_match > h2_match else # \begin{cases}
-                (0 if h1_match == h2_match
-                    else -1)) # \end{cases}
+        #print(1 if h1_match > h2_match else # \begin{cases}
+        #        (0 if h1_match == h2_match
+        #            else -1)) # \end{cases}
  
 # convention to allow import of this file as a module
 if __name__ == '__main__':
