@@ -3,22 +3,26 @@ import argparse # optparse is deprecated
 from itertools import islice # slicing for iterators
 import sys
 from nltk import pos_tag, word_tokenize, download
+from nltk.corpus import wordnet as wn
 from collections import defaultdict
-download('punkt')
-download('maxent_treebank_pos_tagger')
+
 def word_matches(h, ref):
+    """
     r_str = ' '.join(ref)
     h_str = ' '.join(h)
     r_pos = pos_tag(word_tokenize(r_str))
     h_pos = pos_tag(word_tokenize(h_str))
-
-    
     sys.stderr.write(str(r_pos) + '\n')
     sys.stderr.write(str(h_pos) + '\n\n')
+    """
+    """
+    h = [word.lower() for word in h]
+    ref = [word.lower() for word in ref]
+    """
     # parameters
     alpha = 0.82
-    beta = 0.05
-    gamma = 0.0
+    beta = 0.2
+    gamma = 0.21
 
     # generate all possible chunks from reference sentence
     r_dict = [[] for x in xrange(len(ref)*(len(ref)+1)/2)]
@@ -26,8 +30,29 @@ def word_matches(h, ref):
     for r_start in xrange(0,len(ref)+1):
         for r_end in xrange(r_start+1, len(ref)+1):
             r_dict[idx] = ref[r_start:r_end]
-            idx+=1
+            idx += 1
 
+    # look for indices with words not present and add synonym to dictionary
+    indices = [False for i,word in enumerate(h)]
+    for i,word in enumerate(h):
+        if [word] not in r_dict:
+            indices[i] = True
+    
+    syn_count = 0
+    for i,indicator in enumerate(indices):
+        if indicator:
+            word = h[i]
+            try:
+                for ss in wn.synsets(word):
+                    synonym = ss.lemma_names()[0].decode('utf-8')
+                    r_dict.append([synonym])
+                    if synonym in ref:
+                        syn_count += 1
+                        #h[i]=synonym
+                break
+            except ValueError:
+                sys.stderr.write('')
+    
     # generate bag of words for reference and hypothesis sentences
     r_bag = defaultdict(float)
     for r_word in ref:
@@ -78,7 +103,9 @@ def word_matches(h, ref):
     # catch divide-by-zero error
     if i == 0.0:
         return 0.0
-    return (1.0-gamma*((c/m) ** beta))*P_he*R_he/((1.0-alpha)*R_he+alpha*P_he)
+    #return (1.0-gamma*((c/m) ** beta))*P_he*R_he/((1.0-alpha)*R_he+alpha*P_he)
+    #alpha = 0.5
+    return P_he*R_he/((1.0-alpha)*R_he+alpha*P_he)
  
 def main():
     parser = argparse.ArgumentParser(description='Evaluate translation hypotheses.')
@@ -93,15 +120,16 @@ def main():
     def sentences():
         with open(opts.input) as f:
             for pair in f:
-                yield [sentence.decode('utf-8').strip().split() for sentence in pair.split(' ||| ')]
+                yield [sentence.strip().split() for sentence in pair.split(' ||| ')]
  
     # note: the -n option does not work in the original code
-    for h1, h2, ref in islice(sentences(), opts.num_sentences):
+    for i,(h1, h2, ref) in enumerate(islice(sentences(), opts.num_sentences)):
+        sys.stderr.write('\rsentence %d'  % i)
         h1_match = word_matches(h1, ref)
         h2_match = word_matches(h2, ref)
-        #print(1 if h1_match > h2_match else # \begin{cases}
-        #        (0 if h1_match == h2_match
-        #            else -1)) # \end{cases}
+        print(1 if h1_match > h2_match else # \begin{cases}
+                (-1 if h1_match == h2_match
+                    else -1)) # \end{cases}
  
 # convention to allow import of this file as a module
 if __name__ == '__main__':
