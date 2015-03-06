@@ -45,10 +45,11 @@ def word_matches(h, ref):
             try:
                 for ss in wn.synsets(word):
                     synonym = ss.lemma_names()[0].decode('utf-8')
-                    r_dict.append([synonym])
-                    if synonym in ref:
+                    if synonym in ref and synonym in h:
                         syn_count += 1
-                        #h[i]=synonym
+                        h[i]=synonym
+                        r_dict.append([synonym])
+                        break
                 break
             except ValueError:
                 sys.stderr.write('')
@@ -104,7 +105,6 @@ def word_matches(h, ref):
     if i == 0.0:
         return 0.0
     #return (1.0-gamma*((c/m) ** beta))*P_he*R_he/((1.0-alpha)*R_he+alpha*P_he)
-    #alpha = 0.5
     return P_he*R_he/((1.0-alpha)*R_he+alpha*P_he)
  
 def main():

@@ -13,5 +13,3 @@ The `data/` directory contains a training set and a test set
  - `data/hyp1-hyp2-ref` is a file containing tuples of two translation hypotheses and a human reference translation.
 
  - `data/dev.answers` contains human judgements for the first half of the dataset, indicating whether the first hypothesis (hyp1) or the second hypothesis (hyp2) is better or equally good/bad.
-
-

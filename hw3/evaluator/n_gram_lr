@@ -1,0 +1,120 @@
+#!/usr/bin/python
+import argparse # optparse is deprecated
+from itertools import islice # slicing for iterators
+import sys
+from nltk import pos_tag, word_tokenize, download
+from nltk.corpus import wordnet as wn
+from collections import defaultdict
+import scipy, numpy, sklearn
+
+def n_gram_match(h, ref, n):
+    # generate all possible n-grams from reference sentence
+    if n <= len(ref):
+        r_dict = [[] for x in xrange(sum(xrange(len(ref)-n+1,len(ref)+1)))]
+    else:
+        r_dict = [[] for x in xrange(len(ref)*(len(ref)+1)/2)]
+    idx = 0
+    for r_start in xrange(0,len(ref)+1):
+        for r_end in xrange(r_start+1, min(len(ref)+1,r_start+1+n)):
+            r_dict[idx] = ref[r_start:r_end]
+            idx+=1
+
+    # look for indices with words not present and add synonym to dictionary
+    indices = [False for i,word in enumerate(h)]
+    for i,word in enumerate(h):
+        if [word] not in r_dict:
+            indices[i] = True
+    
+    syn_count = 0
+    for i,indicator in enumerate(indices):
+        if indicator:
+            word = h[i]
+            try:
+                for ss in wn.synsets(word):
+                    synonym = ss.lemma_names()[0].decode('utf-8')
+                    if synonym in ref and synonym in h:
+                        syn_count += 1
+                        h[i]=synonym
+                        r_dict.append([synonym])
+                        break
+                break
+            except ValueError:
+                sys.stderr.write('')
+
+    # gather number of matched n-grams between hypothesis and reference sentences
+    n_gram_count = [0 for x in xrange(n)]
+    for i in xrange(n,0,-1):
+        h_start = 0
+        h_end = i
+        while h_start < len(h)-i+1:
+            potential_gram = h[h_start:h_end]
+            if potential_gram in r_dict:
+                n_gram_count[i-1] += 1
+                h_start = h_end
+            else:
+                h_start += 1
+            h_end = h_start+i
+    n_gram_possible = [len(h)/float(i) for i in xrange(1,n+1)]
+    
+    return [n_gram_count[i]/n_gram_possible[i] for i in xrange(0,len(n_gram_count))]
+ 
+def main():
+    parser = argparse.ArgumentParser(description='Evaluate translation hypotheses.')
+    parser.add_argument('-i', '--input', default='data/hyp1-hyp2-ref',
+            help='input file (default data/hyp1-hyp2-ref)')
+    parser.add_argument('-n', '--num_sentences', default=None, type=int,
+            help='Number of hypothesis pairs to evaluate')
+    # note that if x == [1, 2, 3], then x[:None] == x[:] == x (copy); no need for sys.maxint
+    opts = parser.parse_args()
+ 
+    # we create a generator and avoid loading all sentences into a list
+    def sentences():
+        with open(opts.input) as f:
+            for pair in f:
+                yield [sentence.strip().split() for sentence in pair.split(' ||| ')]
+
+    # gather data
+    data = []
+    for h1, h2, ref in islice(sentences(), opts.num_sentences):
+        data.append([h1,h2,ref])
+
+    actual_labels = []
+    with open('data/dev.answers') as label_file:
+        for label in label_file:
+            actual_labels.append(int(label.strip()))
+
+    n=4
+    n_gram_count = numpy.zeros((len(actual_labels),2*n+1))
+    idx = 0
+    for datum in data[0:len(actual_labels)]:
+        h1_grams = n_gram_match(datum[0],datum[2],n)
+        h2_grams = n_gram_match(datum[1],datum[2],n)
+        for gram in h2_grams:
+            h1_grams.append(gram)
+        h1_grams.append(1)
+        n_gram_count[idx,:] = h1_grams
+        idx+=1
+        
+
+    # train linear regression model
+    p = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]]
+    X = n_gram_count
+    Y = numpy.mat(actual_labels).reshape(len(actual_labels),1)
+    hat_m = numpy.linalg.inv((X.transpose()).dot(X))
+    w = hat_m.dot(X.transpose().dot(Y))
+
+    # evaluate translation
+    for i,datum in enumerate(data):
+        sys.stderr.write('\rpercent done: %6.3f%%' % (float(i)/len(data)*100.0))
+        h1_grams = n_gram_match(datum[0],datum[2],n)
+        h2_grams = n_gram_match(datum[1],datum[2],n)
+        for gram in h2_grams:
+            h1_grams.append(gram)
+        h1_grams.append(1)
+        pred = numpy.array(h1_grams).reshape(1,len(h1_grams)).dot(w)
+        print (1 if pred > 0 else -1)
+    sys.stderr.write('\rpercent done: 100%%\n')
+
+# convention to allow import of this file as a module
+if __name__ == '__main__':
+    main()
