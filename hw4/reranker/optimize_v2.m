@@ -2,7 +2,7 @@ clear all
 close all
 
 %% gradient descent
-resolution = 0.01;
+resolution = 0.05;
 range = -5:0.1:0;
 n = size(range,2)^3;
 [o_x,o_y,o_z] = meshgrid(range,range,range);
