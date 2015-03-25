@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+import optparse
+import sys
+import bleu
+import numpy
+
+optparser = optparse.OptionParser()
+optparser.add_option("-k", "--kbest-list", dest="input", default="data/dev+test.100best", help="100-best translation lists")
+optparser.add_option("-l", "--lm", dest="lm", default=-1.0, type="float", help="Language model weight")
+optparser.add_option("-t", "--tm1", dest="tm1", default=-0.5, type="float", help="Translation model p(e|f) weight")
+optparser.add_option("-s", "--tm2", dest="tm2", default=-0.5, type="float", help="Lexical translation model p_lex(f|e) weight")
+(opts, _) = optparser.parse_args()
+
+
+# initialize sentences
+all_hyps = [pair.split(' ||| ') for pair in open(opts.input)]
+num_sents = len(all_hyps) / 100
+
+# obtain reference sentences
+ref = [line.strip().split() for line in open("data/dev.ref")]
+
+# intialize gradient ascent variables
+resolution = 0.01;
+theta_seed = [float(opts.lm)-0.001 , float(opts.tm1), float(opts.tm2)]
+width=3
+v=(width-1)/2
+o_x,o_y,o_z = numpy.mgrid[-v:v+1,-v:v+1,-v:v+1]
+n = width**3
+offsets = numpy.concatenate((o_x.reshape(n,1), o_y.reshape(n,1), o_z.reshape(n,1)),axis=1)*resolution
+
+# termination variables
+biggest = 0;
+prev_biggest = 0;
+term_flag = False
+changed_res = False;
+max_iter = 20;
+iteration = 1
+
+# begin gradient ascent
+while not term_flag and iteration <= max_iter:
+  doc = []
+  final_score = []
+  best_weights = []
+  # calculate the gradient
+  for i in xrange(0,n):
+    sys.stderr.write('\rSampling gradients %d of %d' % (i+1,n))
+    for s in xrange(0, num_sents):
+      hyps_for_one_sent = all_hyps[s * 100:s * 100 + 100]
+      (best_score, best) = (-1e300, '')
+      for (num, hyp, feats) in hyps_for_one_sent:
+        score = 0.0
+        weights = {'p(e)'       : float(theta_seed[0] + offsets[i,0]),
+                   'p(e|f)'     : float(theta_seed[1] + offsets[i,1]),
+                   'p_lex(f|e)' : float(theta_seed[2] + offsets[i,2])}
+        for feat in feats.split(' '):
+          (k, v) = feat.split('=')
+          score += weights[k] * float(v)
+        if score > best_score:
+          (best_score, best) = (score, hyp)
+      doc.append(best.strip().split())
+    
+    # calculate BLEU score of gradient sample
+    stats = [0 for j in xrange(10)]
+    for (r,h) in zip(ref,doc):
+      stats = [sum(scores) for scores in zip(stats, bleu.bleu_stats(h,r))]
+    final_score.append(bleu.bleu(stats))
+  sys.stderr.write('\n')
+
+  # get weights with best BLEU score
+  val = max(final_score)
+  idx = final_score.index(val)
+
+  # update the seed weight if one of the gradient points has a better BLEU score than the current best
+  # otherwise, shrink the resolution and try again up to max_iter times
+  if val > biggest:
+    best_weights = [theta_seed[0] + offsets[idx,0], theta_seed[1] + offsets[idx,1], theta_seed[2] + offsets[idx,2]]
+    sys.stderr.write("Bigger score found. Shifting weights. Previous weights: %6.6f | %6.6f | %6.6f New weights:  %6.6f | %6.6f | %6.6f...\n"
+                     % (theta_seed[0], theta_seed[1], theta_seed[2], best_weights[0], best_weights[1], best_weights[2]))
+    theta_seed = best_weights
+    prev_biggest = biggest
+    biggest = val
+    iteration = 1
+  else:
+    resolution *= 0.5
+    offsets = numpy.concatenate((o_x.reshape(n,1), o_y.reshape(n,1), o_z.reshape(n,1)),axis=1)*resolution
+    changed_res = True
+    iteration += 1
+    sys.stderr.write('Same score found. Changing resolution. New resolution: %6.6f | Current weights:  %6.6f %6.6f %6.6f...\n'
+                     % (resolution, theta_seed[0], theta_seed[1], theta_seed[2]))
+  sys.stderr.write('previous score: %6.6f | score: %6.6f | delta score: %6.6f | iteration: %d | max iter: %d\n'
+                   % (prev_biggest*100,biggest*100, (biggest-prev_biggest)*100, iteration, max_iter))
+
+  # termination condition
+  if abs(prev_biggest - biggest) < 0.00000001 and not changed_res:
+    biggest = val
+    best_weights = [theta_seed[0] + offsets[idx,0], theta_seed[1] + offsets[idx,1], theta_seed[2] + offsets[idx,2]]
+    break
+  if changed_res:
+    changed_res = False
+sys.stderr.write('weights: %9.9f %9.9f %9.9f\n'
+                 % (best_weights[0], best_weights[1], best_weights[2]))
