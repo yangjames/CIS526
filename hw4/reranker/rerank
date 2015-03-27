@@ -7,7 +7,10 @@ optparser.add_option("-k", "--kbest-list", dest="input", default="data/dev+test.
 optparser.add_option("-l", "--lm", dest="lm", default=-1.0, type="float", help="Language model weight")
 optparser.add_option("-t", "--tm1", dest="tm1", default=-0.5, type="float", help="Translation model p(e|f) weight")
 optparser.add_option("-s", "--tm2", dest="tm2", default=-0.5, type="float", help="Lexical translation model p_lex(f|e) weight")
+optparser.add_option("--len", dest="lenw", default = 0, type="float", help="Weight of sentence length")
 (opts, _) = optparser.parse_args()
+
+# obtain best translation
 weights = {'p(e)'       : float(opts.lm) ,
            'p(e|f)'     : float(opts.tm1),
            'p_lex(f|e)' : float(opts.tm2)}
@@ -22,6 +25,7 @@ for s in xrange(0, num_sents):
     for feat in feats.split(' '):
       (k, v) = feat.split('=')
       score += weights[k] * float(v)
+    score+=len(hyp.strip().split())*float(opts.lenw)
     if score > best_score:
       (best_score, best) = (score, hyp)
   try: 
