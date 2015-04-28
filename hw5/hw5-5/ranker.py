@@ -101,8 +101,8 @@ for eindex, e in enumerate(e_sents):
         s_output.append(best_s)
         s_hist += [best_sindex]
 
-for i in xrange(0,len(e_hist)):
-	print "\t".join([s_output[i],e_output[i],str(s_hist[i]-1),str(e_hist[i]-1)])
+for s,e,s_h,e_h in zip(s_output,e_output,s_hist,e_hist):
+	print "\t".join([s,e,str(s_h),str(e_h)])
 """
 s_file = open(s_file_name, "w")
 e_file = open(e_file_name, "w")
