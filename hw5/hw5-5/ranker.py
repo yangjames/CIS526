@@ -140,5 +140,8 @@ for (e_data, s_data) in document_pairs:
 			s_hist += [best_sindex]
 
 	for e,s,e_idx, s_idx in zip(e_output, s_output, e_hist, s_hist):
-		print "\t".join([s,e,str(s_idx),str(e_idx)])
-
+		print "\t".join([s,e,str(s_idx-1),str(e_idx-1)])
+	#e_output = []
+	#s_output = []
+	#e_hist = []
+	#s_hist = []
