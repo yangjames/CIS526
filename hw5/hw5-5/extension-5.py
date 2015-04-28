@@ -126,9 +126,10 @@ for (e_data, s_data) in document_pairs:
 					best_score = score
 		if best_score > opts.threshold:
 			#e_output.append(e)
-			e_output.append(' '.join(e_list))
+			e_output.append(title_e)
 			e_hist += [eindex]
-			s_output.append(best_s)
+			#s_output.append(best_s)
+			s_output.append(title_s)
 			s_hist += [best_sindex]
 
 	for e,s,e_idx, s_idx in zip(e_output, s_output, e_hist, s_hist):
