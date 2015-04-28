@@ -18,6 +18,7 @@ optparser.add_option("-p", "--PROPER_W", dest="PROPER_W", default=2.5, type="flo
 optparser.add_option("-n", "--num_sentences", dest="num_sents", default=sys.maxint, type="int", help="Number of sentences to use for training and alignment")
 optparser.add_option("-w", "--windowsize", dest="win_size", default=200, type="int", help="Window size")
 optparser.add_option("-l", "--stoplist", dest="stop_file", default="stopwords.txt", help="List of stop words")
+optparser.add_option("-k", "--length_ratio", dest="length_ratio", default=1.18, type="float",help="ratio of len(spanish) to len(english)")
 
 (opts, _) = optparser.parse_args()
 s_data = "%s%s" % (opts.train, opts.spanish)
@@ -43,6 +44,7 @@ es_map = {}
 for es_line in es_lists:
     es_map[es_line[0]] = es_line[1:]
 PROPER_W = opts.PROPER_W
+konstant_length_ratio = opts.length_ratio
 
 #mathcing
 e_hist = [] #mathcing history variables to consider previous matches as an idication of future performance
@@ -96,6 +98,9 @@ for (e_data, s_data) in document_pairs:
 		aligned = False
 		for (s,sindex) in document_s:
 		#for sindex, s in enumerate(s_sents[start:end]):
+			lenSpan_to_lenEng = float(len(s))/e_len
+			lengthDiffFromTarget = abs(konstant_length_ratio - lenSpan_to_lenEng)
+
 			sindex += start
 			if sindex not in s_hist:
 				count_overlap = 0
@@ -118,6 +123,8 @@ for (e_data, s_data) in document_pairs:
 								translated = True
 								e_bit_vec[k] = 1
 				score = hist_const*((count_overlap+PROPER_W*count_same) / e_len)
+				score *= (1-lengthDiffFromTarget)
+				
 				#append each sentence if above thresh
 				if score > best_score:
 					#best_s = s
